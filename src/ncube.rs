@@ -1,14 +1,9 @@
-use theon::adjunct::{Converged, FromItems, IntoItems};
+use theon::adjunct::{Converged, Fold, Map, ZipMap};
 use theon::query::{Aabb, Intersection};
 use theon::space::{EuclideanSpace, FiniteDimensional, Scalar, Vector};
 use typenum::Unsigned;
 
 use crate::{Half, Partition, Subdivide};
-
-// TODO: The composite API is not powerful enough to implement these traits
-//       without de/composing types into iterators. Perhaps that API could
-//       support mapping `Item` into different types and an explicit mechanism
-//       to index dimensions.
 
 pub struct NCube<S>
 where
@@ -42,7 +37,8 @@ where
 
 impl<S> Partition<S> for NCube<S>
 where
-    S: EuclideanSpace + FiniteDimensional + FromItems + IntoItems,
+    S: EuclideanSpace + FiniteDimensional + Map<Output = S> + ZipMap<usize>,
+    <S as ZipMap<usize>>::Output: Fold,
     Aabb<S>: Intersection<S>,
     Vector<S>: Converged,
 {
@@ -51,19 +47,20 @@ where
     }
 
     fn index(&self, point: &S) -> usize {
+        let mut dimension = 0usize;
         point
-            .into_items()
-            .into_iter()
-            .zip(self.center().into_items())
-            .enumerate()
-            .map(|(dimension, (x, c))| if x < c { 0 } else { 1 << dimension })
+            .zip_map(self.center(), |x, c| {
+                let index = if x < c { 0 } else { 1 << dimension };
+                dimension += 1;
+                index
+            })
             .sum()
     }
 }
 
 impl<S> Subdivide for NCube<S>
 where
-    S: EuclideanSpace + FiniteDimensional + FromItems + IntoItems,
+    S: Map<Output = S> + EuclideanSpace + FiniteDimensional,
 {
     // TODO: Is it possible to constrain `FiniteDimensional` and specify an
     //       `ArrayVec` of the correct capacity? Maybe the implementation of
@@ -77,14 +74,18 @@ where
         let n = 2i32.pow(<S as FiniteDimensional>::N::U32);
         (0i32..n)
             .map(|axis| {
-                let origin = S::from_items(self.origin.into_items().into_iter().enumerate().map(
-                    |(dimension, x)| match (axis / (2i32.pow(dimension as u32))) % 2i32 {
-                        0 => x,
-                        1 => x + width,
-                        _ => unreachable!(),
-                    },
-                ))
-                .unwrap();
+                let origin = {
+                    let mut dimension = 0usize;
+                    self.origin.map(|x| {
+                        let x = match (axis / (2i32.pow(dimension as u32))) % 2i32 {
+                            0 => x,
+                            1 => x + width,
+                            _ => unreachable!(),
+                        };
+                        dimension += 1;
+                        x
+                    })
+                };
                 NCube { origin, width }
             })
             .collect()

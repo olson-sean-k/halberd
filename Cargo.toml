@@ -5,29 +5,21 @@ authors = ["Sean Olson <olson.sean.k@gmail.com>"]
 edition = "2018"
 
 [dependencies]
+decorum = "^0.3.1"
 num = "^0.2.0"
 typenum = "^1.11.0"
 
-[dependencies.decorum] # Unstable.
-path = "../decorum"
-#git = "https://github.com/olson-sean-k/decorum.git"
-default-features = false
-
 [dependencies.theon] # Unstable.
-path = "../theon"
-#git = "https://github.com/olson-sean-k/theon.git"
-#rev = "811ea063ffae86beeba6b5c6a58c26c1065ae8a9"
+git = "https://github.com/olson-sean-k/theon.git"
+rev = "115e10b"
 default-features = false
-features = [
-    #"geometry-nalgebra"
-]
+features = []
 
 [dev-dependencies]
 
 [dev-dependencies.theon] # Unstable.
-path = "../theon"
-#git = "https://github.com/olson-sean-k/theon.git"
-#rev = "811ea063ffae86beeba6b5c6a58c26c1065ae8a9"
+git = "https://github.com/olson-sean-k/theon.git"
+rev = "115e10b"
 default-features = false
 features = [
     "geometry-nalgebra"
