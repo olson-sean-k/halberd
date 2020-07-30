@@ -71,13 +71,12 @@ where
 
     fn subdivide(&self) -> Self::Output {
         let width = self.width.half();
-        let n = 2i32.pow(<S as FiniteDimensional>::N::U32);
-        (0i32..n)
-            .map(|axis| {
+        (0i32..2i32.pow(<S as FiniteDimensional>::N::U32))
+            .map(|n| {
                 let origin = {
                     let mut dimension = 0usize;
                     self.origin.map(|x| {
-                        let x = match (axis / (2i32.pow(dimension as u32))) % 2i32 {
+                        let x = match (n / (2i32.pow(dimension as u32))) % 2i32 {
                             0 => x,
                             1 => x + width,
                             _ => unreachable!(),
