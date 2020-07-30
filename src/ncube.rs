@@ -113,6 +113,7 @@ mod tests {
         assert_eq!(3, cube.index(&EuclideanSpace::from_xy(4.0, 4.0)));
         assert!(cube.contains(&EuclideanSpace::origin()));
         assert!(cube.contains(&EuclideanSpace::from_xy(4.0, 4.0)));
+        assert!(!cube.contains(&EuclideanSpace::from_xy(-1.0, -1.0)));
     }
 
     #[test]

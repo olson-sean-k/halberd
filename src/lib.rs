@@ -1,6 +1,7 @@
 mod ncube;
 mod tree;
 
+use decorum::Real;
 use num::{Num, One};
 
 pub use ncube::NCube;
@@ -11,7 +12,7 @@ trait Half {
 
 impl<T> Half for T
 where
-    T: Num + One,
+    T: Num + One + Real,
 {
     fn half(self) -> Self {
         self / (Self::one() + Self::one())
