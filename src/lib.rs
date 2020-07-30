@@ -2,6 +2,7 @@ mod ncube;
 mod tree;
 
 use decorum::Real;
+use fool::BoolExt;
 use num::{Num, One};
 
 pub use ncube::NCube;
@@ -26,9 +27,12 @@ pub trait Subdivide: Sized {
 }
 
 pub trait Partition<S>: Subdivide {
-    fn contains(&self, _: &S) -> bool;
+    fn contains(&self, point: &S) -> bool;
 
-    // TODO: Should this API handle elements that are not contained by the
-    //       partition? Should this function return `Option<usize>`?
-    fn index(&self, _: &S) -> usize;
+    fn index_unchecked(&self, point: &S) -> usize;
+
+    #[allow(unstable_name_collisions)]
+    fn index(&self, point: &S) -> Option<usize> {
+        self.contains(point).then_some(self.index_unchecked(point))
+    }
 }

@@ -46,7 +46,7 @@ where
         self.aabb().intersection(point).is_some()
     }
 
-    fn index(&self, point: &S) -> usize {
+    fn index_unchecked(&self, point: &S) -> usize {
         let mut dimension = 0usize;
         point
             .zip_map(self.center(), |x, c| {
@@ -109,8 +109,9 @@ mod tests {
             origin: EuclideanSpace::origin(),
             width: 8.0,
         };
-        assert_eq!(0, cube.index(&EuclideanSpace::origin()));
-        assert_eq!(3, cube.index(&EuclideanSpace::from_xy(4.0, 4.0)));
+        assert_eq!(0, cube.index_unchecked(&EuclideanSpace::origin()));
+        assert_eq!(3, cube.index_unchecked(&EuclideanSpace::from_xy(4.0, 4.0)));
+        assert_eq!(None, cube.index(&EuclideanSpace::from_xy(-4.0, -4.0)));
         assert!(cube.contains(&EuclideanSpace::origin()));
         assert!(cube.contains(&EuclideanSpace::from_xy(4.0, 4.0)));
         assert!(!cube.contains(&EuclideanSpace::from_xy(-1.0, -1.0)));
