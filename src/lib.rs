@@ -1,5 +1,5 @@
-mod ncube;
-mod tree;
+pub mod ncube;
+pub mod tree;
 
 use decorum::Real;
 use fool::BoolExt;
