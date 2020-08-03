@@ -3,7 +3,8 @@ use theon::query::{Aabb, Intersection};
 use theon::space::{EuclideanSpace, FiniteDimensional, Scalar, Vector};
 use typenum::Unsigned;
 
-use crate::{Half, Partition, Spatial, Subdivide};
+use crate::partition::{Partition, Subdivide};
+use crate::{Half, Spatial};
 
 pub struct NCube<S>
 where
@@ -105,7 +106,7 @@ mod tests {
     use nalgebra::{Point2, Point3};
     use theon::space::EuclideanSpace;
 
-    use crate::{NCube, Partition, Subdivide};
+    use crate::partition::{NCube, Partition, Subdivide};
 
     type E2 = Point2<f64>;
     type E3 = Point3<f64>;
