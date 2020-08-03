@@ -3,7 +3,7 @@ use theon::query::{Aabb, Intersection};
 use theon::space::{EuclideanSpace, FiniteDimensional, Scalar, Vector};
 use typenum::Unsigned;
 
-use crate::{Half, Partition, Subdivide};
+use crate::{Half, Partition, Spatial, Subdivide};
 
 pub struct NCube<S>
 where
@@ -35,18 +35,18 @@ where
     }
 }
 
-impl<S> Partition<S> for NCube<S>
+impl<S> Partition for NCube<S>
 where
     S: EuclideanSpace + FiniteDimensional + Map<Output = S> + ZipMap<usize>,
     <S as ZipMap<usize>>::Output: Fold,
     Aabb<S>: Intersection<S>,
     Vector<S>: Converged,
 {
-    fn contains(&self, point: &S) -> bool {
+    fn contains(&self, point: &Self::Space) -> bool {
         self.aabb().intersection(point).is_some()
     }
 
-    fn index_unchecked(&self, point: &S) -> usize {
+    fn index_unchecked(&self, point: &Self::Space) -> usize {
         let mut dimension = 0usize;
         point
             .zip_map(self.center(), |x, c| {
@@ -56,6 +56,13 @@ where
             })
             .sum()
     }
+}
+
+impl<S> Spatial for NCube<S>
+where
+    S: EuclideanSpace + FiniteDimensional,
+{
+    type Space = S;
 }
 
 impl<S> Subdivide for NCube<S>

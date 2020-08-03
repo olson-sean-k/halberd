@@ -1,7 +1,9 @@
-use theon::space::{EuclideanSpace, FiniteDimensional};
+use theon::space::FiniteDimensional;
 use typenum::{NonZero, Unsigned, U2, U3};
 
-use crate::Partition;
+use crate::{Partition, Spatial};
+
+type DimensionOf<P> = <<P as Spatial>::Space as FiniteDimensional>::N;
 
 trait Reborrow {
     type Target;
@@ -54,61 +56,59 @@ where
     type Link;
 }
 
-pub trait AsNodes<S, P, T>: Topology<S::N>
+pub trait AsNodes<P, T>: Topology<DimensionOf<P>>
 where
-    Branch<S, P, T>: Topology<S::N>,
-    S: EuclideanSpace + FiniteDimensional,
-    P: Partition<S>,
+    Branch<P, T>: Topology<DimensionOf<P>>,
+    P: Partition,
     T: TreeData,
 {
-    fn as_nodes(&self) -> &[Node<S, P, T>];
+    fn as_nodes(&self) -> &[Node<P, T>];
 
-    fn as_nodes_mut(&mut self) -> &mut [Node<S, P, T>];
+    fn as_nodes_mut(&mut self) -> &mut [Node<P, T>];
 }
 
-impl<S, P, T> AsNodes<S, P, T> for Branch<S, P, T>
+impl<P, T> AsNodes<P, T> for Branch<P, T>
 where
-    Branch<S, P, T>: Topology<S::N>,
-    <Branch<S, P, T> as Topology<S::N>>::Link: AsRef<[Node<S, P, T>]> + AsMut<[Node<S, P, T>]>,
-    S: EuclideanSpace + FiniteDimensional,
-    P: Partition<S>,
+    Branch<P, T>: Topology<DimensionOf<P>>,
+    <Branch<P, T> as Topology<DimensionOf<P>>>::Link: AsRef<[Node<P, T>]> + AsMut<[Node<P, T>]>,
+    P: Partition,
     T: TreeData,
 {
-    fn as_nodes(&self) -> &[Node<S, P, T>] {
+    fn as_nodes(&self) -> &[Node<P, T>] {
         self.nodes.as_ref().as_ref()
     }
 
-    fn as_nodes_mut(&mut self) -> &mut [Node<S, P, T>] {
+    fn as_nodes_mut(&mut self) -> &mut [Node<P, T>] {
         self.nodes.as_mut().as_mut()
     }
 }
 
-pub struct Branch<S, P, T>
+pub struct Branch<P, T>
 where
-    Self: Topology<S::N>,
-    S: EuclideanSpace + FiniteDimensional,
+    Self: Topology<DimensionOf<P>>,
+    P: Partition,
     T: TreeData,
 {
     pub data: T::Branch,
-    nodes: Box<<Self as Topology<S::N>>::Link>,
+    nodes: Box<<Self as Topology<DimensionOf<P>>>::Link>,
 }
 
-impl<S, P, T> Topology<U2> for Branch<S, P, T>
+impl<P, T> Topology<U2> for Branch<P, T>
 where
-    S: EuclideanSpace + FiniteDimensional<N = U2>,
-    P: Partition<S>,
+    P: Partition,
+    P::Space: FiniteDimensional<N = U2>,
     T: TreeData,
 {
-    type Link = [Node<S, P, T>; 4];
+    type Link = [Node<P, T>; 4];
 }
 
-impl<S, P, T> Topology<U3> for Branch<S, P, T>
+impl<P, T> Topology<U3> for Branch<P, T>
 where
-    S: EuclideanSpace + FiniteDimensional<N = U3>,
-    P: Partition<S>,
+    P: Partition,
+    P::Space: FiniteDimensional<N = U3>,
     T: TreeData,
 {
-    type Link = [Node<S, P, T>; 8];
+    type Link = [Node<P, T>; 8];
 }
 
 pub struct Leaf<T>
@@ -118,34 +118,31 @@ where
     pub data: T::Leaf,
 }
 
-pub enum NodeState<S, P, T>
+pub enum NodeState<P, T>
 where
-    Branch<S, P, T>: Topology<S::N>,
-    S: EuclideanSpace + FiniteDimensional,
-    P: Partition<S>,
+    Branch<P, T>: Topology<DimensionOf<P>>,
+    P: Partition,
     T: TreeData,
 {
-    Branch(Branch<S, P, T>),
+    Branch(Branch<P, T>),
     Leaf(Leaf<T>),
 }
 
-pub struct Node<S, P, T>
+pub struct Node<P, T>
 where
-    Branch<S, P, T>: Topology<S::N>,
-    S: EuclideanSpace + FiniteDimensional,
-    P: Partition<S>,
+    Branch<P, T>: Topology<DimensionOf<P>>,
+    P: Partition,
     T: TreeData,
 {
-    pub state: NodeState<S, P, T>,
+    pub state: NodeState<P, T>,
     pub data: T::Node,
     partition: P,
 }
 
-impl<S, P, T> Node<S, P, T>
+impl<P, T> Node<P, T>
 where
-    Branch<S, P, T>: AsNodes<S, P, T>,
-    S: EuclideanSpace + FiniteDimensional,
-    P: Partition<S>,
+    Branch<P, T>: AsNodes<P, T>,
+    P: Partition,
     T: TreeData,
 {
     #[cfg(test)] // Sanity check on `AsNodes` constraint.
