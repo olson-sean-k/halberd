@@ -17,14 +17,14 @@ impl<S> NCube<S>
 where
     S: EuclideanSpace,
 {
-    fn center(&self) -> S
+    pub fn center(&self) -> S
     where
         Vector<S>: Converged,
     {
         self.origin + Vector::<S>::converged(self.width.half())
     }
 
-    fn aabb(&self) -> Aabb<S>
+    pub fn aabb(&self) -> Aabb<S>
     where
         Vector<S>: Converged,
     {
