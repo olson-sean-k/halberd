@@ -2,8 +2,31 @@ use std::ops::Deref;
 
 use crate::partition::Partition;
 use crate::tree::borrow::{Reborrow, ReborrowInto};
-use crate::tree::node::{AsNode, Branch, ClosedNode, Topology};
+use crate::tree::node::{Branch, Node, Topology};
 use crate::tree::{Dimension, TreeData};
+
+pub trait ClosedNode {
+    type Partition: Partition;
+    type Data: TreeData;
+}
+
+pub trait AsNode<P, T>: ClosedNode<Partition = P, Data = T>
+where
+    Branch<P, T>: Topology<Dimension<P>>,
+    P: Partition,
+    T: TreeData,
+{
+    fn as_node(&self) -> &Node<P, T>;
+}
+
+pub trait AsNodeMut<P, T>: AsNode<P, T>
+where
+    Branch<P, T>: Topology<Dimension<P>>,
+    P: Partition,
+    T: TreeData,
+{
+    fn as_node_mut(&mut self) -> &mut Node<P, T>;
+}
 
 pub struct NodeView<B>
 where

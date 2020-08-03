@@ -2,30 +2,8 @@ use theon::space::FiniteDimensional;
 use typenum::{NonZero, Unsigned, U2, U3};
 
 use crate::partition::Partition;
+use crate::tree::view::{AsNode, AsNodeMut, ClosedNode};
 use crate::tree::{Dimension, TreeData};
-
-pub trait ClosedNode {
-    type Partition: Partition;
-    type Data: TreeData;
-}
-
-pub trait AsNode<P, T>: ClosedNode<Partition = P, Data = T>
-where
-    Branch<P, T>: Topology<Dimension<P>>,
-    P: Partition,
-    T: TreeData,
-{
-    fn as_node(&self) -> &Node<P, T>;
-}
-
-pub trait AsNodeMut<P, T>: AsNode<P, T>
-where
-    Branch<P, T>: Topology<Dimension<P>>,
-    P: Partition,
-    T: TreeData,
-{
-    fn as_node_mut(&mut self) -> &mut Node<P, T>;
-}
 
 pub trait Topology<N>
 where
@@ -34,29 +12,29 @@ where
     type Link;
 }
 
-pub trait AsNodes<P, T>: Topology<Dimension<P>>
+pub trait AsSubdivisions<P, T>: Topology<Dimension<P>>
 where
     Branch<P, T>: Topology<Dimension<P>>,
     P: Partition,
     T: TreeData,
 {
-    fn as_nodes(&self) -> &[Node<P, T>];
+    fn as_subdivisions(&self) -> &[Node<P, T>];
 
-    fn as_nodes_mut(&mut self) -> &mut [Node<P, T>];
+    fn as_subdivisions_mut(&mut self) -> &mut [Node<P, T>];
 }
 
-impl<P, T> AsNodes<P, T> for Branch<P, T>
+impl<P, T> AsSubdivisions<P, T> for Branch<P, T>
 where
     Branch<P, T>: Topology<Dimension<P>>,
     <Branch<P, T> as Topology<Dimension<P>>>::Link: AsRef<[Node<P, T>]> + AsMut<[Node<P, T>]>,
     P: Partition,
     T: TreeData,
 {
-    fn as_nodes(&self) -> &[Node<P, T>] {
+    fn as_subdivisions(&self) -> &[Node<P, T>] {
         self.nodes.as_ref().as_ref()
     }
 
-    fn as_nodes_mut(&mut self) -> &mut [Node<P, T>] {
+    fn as_subdivisions_mut(&mut self) -> &mut [Node<P, T>] {
         self.nodes.as_mut().as_mut()
     }
 }
@@ -119,14 +97,14 @@ where
 
 impl<P, T> Node<P, T>
 where
-    Branch<P, T>: AsNodes<P, T>,
+    Branch<P, T>: AsSubdivisions<P, T>,
     P: Partition,
     T: TreeData,
 {
-    #[cfg(test)] // Sanity check on `AsNodes` constraint.
+    #[cfg(test)] // Sanity check on `AsSubdivisions` constraint.
     fn test(&self) {
         match self.state {
-            NodeState::Branch(ref branch) => for node in branch.as_nodes() {},
+            NodeState::Branch(ref branch) => for node in branch.as_subdivisions() {},
             _ => {}
         }
     }
