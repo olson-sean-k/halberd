@@ -3,7 +3,7 @@ use typenum::{NonZero, Unsigned, U2, U3};
 
 use crate::{Partition, Spatial};
 
-type DimensionOf<P> = <<P as Spatial>::Space as FiniteDimensional>::N;
+type Dimension<P> = <<P as Spatial>::Space as FiniteDimensional>::N;
 
 trait Reborrow {
     type Target;
@@ -56,9 +56,9 @@ where
     type Link;
 }
 
-pub trait AsNodes<P, T>: Topology<DimensionOf<P>>
+pub trait AsNodes<P, T>: Topology<Dimension<P>>
 where
-    Branch<P, T>: Topology<DimensionOf<P>>,
+    Branch<P, T>: Topology<Dimension<P>>,
     P: Partition,
     T: TreeData,
 {
@@ -69,8 +69,8 @@ where
 
 impl<P, T> AsNodes<P, T> for Branch<P, T>
 where
-    Branch<P, T>: Topology<DimensionOf<P>>,
-    <Branch<P, T> as Topology<DimensionOf<P>>>::Link: AsRef<[Node<P, T>]> + AsMut<[Node<P, T>]>,
+    Branch<P, T>: Topology<Dimension<P>>,
+    <Branch<P, T> as Topology<Dimension<P>>>::Link: AsRef<[Node<P, T>]> + AsMut<[Node<P, T>]>,
     P: Partition,
     T: TreeData,
 {
@@ -85,12 +85,12 @@ where
 
 pub struct Branch<P, T>
 where
-    Self: Topology<DimensionOf<P>>,
+    Self: Topology<Dimension<P>>,
     P: Partition,
     T: TreeData,
 {
     pub data: T::Branch,
-    nodes: Box<<Self as Topology<DimensionOf<P>>>::Link>,
+    nodes: Box<<Self as Topology<Dimension<P>>>::Link>,
 }
 
 impl<P, T> Topology<U2> for Branch<P, T>
@@ -120,7 +120,7 @@ where
 
 pub enum NodeState<P, T>
 where
-    Branch<P, T>: Topology<DimensionOf<P>>,
+    Branch<P, T>: Topology<Dimension<P>>,
     P: Partition,
     T: TreeData,
 {
@@ -130,7 +130,7 @@ where
 
 pub struct Node<P, T>
 where
-    Branch<P, T>: Topology<DimensionOf<P>>,
+    Branch<P, T>: Topology<Dimension<P>>,
     P: Partition,
     T: TreeData,
 {
