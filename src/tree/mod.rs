@@ -9,6 +9,7 @@ use crate::tree::node::Topology;
 use crate::Spatial;
 
 pub use crate::tree::node::{Branch, Leaf, Node, NodeState};
+pub use crate::tree::view::{NodeOrphan, NodeView};
 
 type Dimension<P> = <<P as Spatial>::Space as FiniteDimensional>::N;
 

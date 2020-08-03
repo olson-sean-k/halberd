@@ -4,6 +4,29 @@ use typenum::{NonZero, Unsigned, U2, U3};
 use crate::partition::Partition;
 use crate::tree::{Dimension, TreeData};
 
+pub trait ClosedNode {
+    type Partition: Partition;
+    type Data: TreeData;
+}
+
+pub trait AsNode<P, T>: ClosedNode<Partition = P, Data = T>
+where
+    Branch<P, T>: Topology<Dimension<P>>,
+    P: Partition,
+    T: TreeData,
+{
+    fn as_node(&self) -> &Node<P, T>;
+}
+
+pub trait AsNodeMut<P, T>: AsNode<P, T>
+where
+    Branch<P, T>: Topology<Dimension<P>>,
+    P: Partition,
+    T: TreeData,
+{
+    fn as_node_mut(&mut self) -> &mut Node<P, T>;
+}
+
 pub trait Topology<N>
 where
     N: NonZero + Unsigned,
@@ -107,4 +130,36 @@ where
             _ => {}
         }
     }
+}
+
+impl<P, T> AsNode<P, T> for Node<P, T>
+where
+    Branch<P, T>: Topology<Dimension<P>>,
+    P: Partition,
+    T: TreeData,
+{
+    fn as_node(&self) -> &Node<P, T> {
+        self
+    }
+}
+
+impl<P, T> AsNodeMut<P, T> for Node<P, T>
+where
+    Branch<P, T>: Topology<Dimension<P>>,
+    P: Partition,
+    T: TreeData,
+{
+    fn as_node_mut(&mut self) -> &mut Node<P, T> {
+        self
+    }
+}
+
+impl<P, T> ClosedNode for Node<P, T>
+where
+    Branch<P, T>: Topology<Dimension<P>>,
+    P: Partition,
+    T: TreeData,
+{
+    type Partition = P;
+    type Data = T;
 }
