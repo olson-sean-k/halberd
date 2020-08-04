@@ -4,16 +4,16 @@ use typenum::{NonZero, Unsigned, U2, U3};
 use crate::partition::Partition;
 use crate::tree::{Dimension, TreeData};
 
-pub trait Topology<N>
+pub trait LinkTopology<N>
 where
     N: NonZero + Unsigned,
 {
     type Link;
 }
 
-pub trait Subdivided<P, T>: Topology<Dimension<P>>
+pub trait Subdivided<P, T>: LinkTopology<Dimension<P>>
 where
-    Branch<P, T>: Topology<Dimension<P>>,
+    Branch<P, T>: LinkTopology<Dimension<P>>,
     P: Partition,
     T: TreeData,
 {
@@ -24,8 +24,8 @@ where
 
 impl<P, T> Subdivided<P, T> for Branch<P, T>
 where
-    Branch<P, T>: Topology<Dimension<P>>,
-    <Branch<P, T> as Topology<Dimension<P>>>::Link: AsRef<[Node<P, T>]> + AsMut<[Node<P, T>]>,
+    Branch<P, T>: LinkTopology<Dimension<P>>,
+    <Branch<P, T> as LinkTopology<Dimension<P>>>::Link: AsRef<[Node<P, T>]> + AsMut<[Node<P, T>]>,
     P: Partition,
     T: TreeData,
 {
@@ -40,30 +40,15 @@ where
 
 pub struct Branch<P, T>
 where
-    Self: Topology<Dimension<P>>,
+    Self: LinkTopology<Dimension<P>>,
     P: Partition,
     T: TreeData,
 {
     pub data: T::Branch,
-    nodes: Box<<Self as Topology<Dimension<P>>>::Link>,
+    nodes: Box<<Self as LinkTopology<Dimension<P>>>::Link>,
 }
 
-impl<P, T> Branch<P, T>
-where
-    Branch<P, T>: Subdivided<P, T>,
-    P: Partition,
-    T: TreeData,
-{
-    pub fn subdivisions(&self) -> impl Clone + ExactSizeIterator<Item = &Node<P, T>> {
-        self.as_subdivision_slice().iter()
-    }
-
-    pub fn subdivisions_mut(&mut self) -> impl ExactSizeIterator<Item = &mut Node<P, T>> {
-        self.as_subdivision_slice_mut().iter_mut()
-    }
-}
-
-impl<P, T> Topology<U2> for Branch<P, T>
+impl<P, T> LinkTopology<U2> for Branch<P, T>
 where
     P: Partition,
     P::Space: FiniteDimensional<N = U2>,
@@ -72,7 +57,7 @@ where
     type Link = [Node<P, T>; 4];
 }
 
-impl<P, T> Topology<U3> for Branch<P, T>
+impl<P, T> LinkTopology<U3> for Branch<P, T>
 where
     P: Partition,
     P::Space: FiniteDimensional<N = U3>,
@@ -88,30 +73,59 @@ where
     pub data: T::Leaf,
 }
 
-pub enum NodeState<P, T>
-where
-    Branch<P, T>: Topology<Dimension<P>>,
-    P: Partition,
-    T: TreeData,
-{
-    Branch(Branch<P, T>),
-    Leaf(Leaf<T>),
+pub enum NodeTopology<B, L> {
+    Branch(B),
+    Leaf(L),
+}
+
+impl<B, L> NodeTopology<B, L> {
+    pub fn into_branch(self) -> Option<B> {
+        if let NodeTopology::Branch(branch) = self {
+            Some(branch)
+        }
+        else {
+            None
+        }
+    }
+
+    pub fn into_leaf(self) -> Option<L> {
+        if let NodeTopology::Leaf(leaf) = self {
+            Some(leaf)
+        }
+        else {
+            None
+        }
+    }
+
+    fn to_ref(&self) -> NodeTopology<&B, &L> {
+        match self {
+            NodeTopology::Branch(ref branch) => NodeTopology::Branch(branch),
+            NodeTopology::Leaf(ref leaf) => NodeTopology::Leaf(leaf),
+        }
+    }
+
+    fn to_mut(&mut self) -> NodeTopology<&mut B, &mut L> {
+        match self {
+            NodeTopology::Branch(ref mut branch) => NodeTopology::Branch(branch),
+            NodeTopology::Leaf(ref mut leaf) => NodeTopology::Leaf(leaf),
+        }
+    }
 }
 
 pub struct Node<P, T>
 where
-    Branch<P, T>: Topology<Dimension<P>>,
+    Branch<P, T>: LinkTopology<Dimension<P>>,
     P: Partition,
     T: TreeData,
 {
     pub data: T::Node,
-    state: NodeState<P, T>,
+    topology: NodeTopology<Branch<P, T>, Leaf<T>>,
     partition: P,
 }
 
 impl<P, T> Node<P, T>
 where
-    Branch<P, T>: Topology<Dimension<P>>,
+    Branch<P, T>: LinkTopology<Dimension<P>>,
     P: Partition,
     T: TreeData,
 {
@@ -119,31 +133,11 @@ where
         &self.partition
     }
 
-    pub fn as_branch(&self) -> Option<&Branch<P, T>> {
-        match self.state {
-            NodeState::Branch(ref branch) => Some(branch),
-            _ => None,
-        }
+    pub fn topology(&self) -> NodeTopology<&Branch<P, T>, &Leaf<T>> {
+        self.topology.to_ref()
     }
 
-    pub fn as_branch_mut(&mut self) -> Option<&mut Branch<P, T>> {
-        match self.state {
-            NodeState::Branch(ref mut branch) => Some(branch),
-            _ => None,
-        }
-    }
-
-    pub fn as_leaf(&self) -> Option<&Leaf<T>> {
-        match self.state {
-            NodeState::Leaf(ref leaf) => Some(leaf),
-            _ => None,
-        }
-    }
-
-    pub fn as_leaf_mut(&mut self) -> Option<&mut Leaf<T>> {
-        match self.state {
-            NodeState::Leaf(ref mut leaf) => Some(leaf),
-            _ => None,
-        }
+    pub fn topology_mut(&mut self) -> NodeTopology<&mut Branch<P, T>, &mut Leaf<T>> {
+        self.topology.to_mut()
     }
 }
