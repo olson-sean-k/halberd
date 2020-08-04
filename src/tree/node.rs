@@ -4,6 +4,8 @@ use typenum::{NonZero, Unsigned, U2, U3};
 use crate::partition::Partition;
 use crate::tree::{Dimension, TreeData};
 
+pub type Link<P, T> = <Branch<P, T> as LinkTopology<Dimension<P>>>::Link;
+
 pub trait LinkTopology<N>
 where
     N: NonZero + Unsigned,
@@ -14,12 +16,13 @@ where
 pub trait Subdivided<P, T>: LinkTopology<Dimension<P>>
 where
     Branch<P, T>: LinkTopology<Dimension<P>>,
+    Link<P, T>: AsRef<[Node<P, T>]> + AsMut<[Node<P, T>]>,
     P: Partition,
     T: TreeData,
 {
-    fn as_subdivision_slice(&self) -> &[Node<P, T>];
+    fn nodes(&self) -> &Link<P, T>;
 
-    fn as_subdivision_slice_mut(&mut self) -> &mut [Node<P, T>];
+    fn nodes_mut(&mut self) -> &mut Link<P, T>;
 }
 
 pub struct Branch<P, T>
@@ -52,16 +55,16 @@ where
 impl<P, T> Subdivided<P, T> for Branch<P, T>
 where
     Branch<P, T>: LinkTopology<Dimension<P>>,
-    <Branch<P, T> as LinkTopology<Dimension<P>>>::Link: AsRef<[Node<P, T>]> + AsMut<[Node<P, T>]>,
+    Link<P, T>: AsRef<[Node<P, T>]> + AsMut<[Node<P, T>]>,
     P: Partition,
     T: TreeData,
 {
-    fn as_subdivision_slice(&self) -> &[Node<P, T>] {
-        self.nodes.as_ref().as_ref()
+    fn nodes(&self) -> &Link<P, T> {
+        self.nodes.as_ref()
     }
 
-    fn as_subdivision_slice_mut(&mut self) -> &mut [Node<P, T>] {
-        self.nodes.as_mut().as_mut()
+    fn nodes_mut(&mut self) -> &mut Link<P, T> {
+        self.nodes.as_mut()
     }
 }
 
@@ -110,7 +113,7 @@ where
     P: Partition,
     T: TreeData,
 {
-    pub data: T::Node,
+    data: T::Node,
     topology: NodeTopology<Branch<P, T>, Leaf<T>>,
     partition: P,
 }
@@ -127,5 +130,35 @@ where
 
     pub fn topology(&self) -> NodeTopology<&Branch<P, T>, &Leaf<T>> {
         self.topology.to_ref()
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    use theon::integration::nalgebra;
+
+    use decorum::R64;
+    use nalgebra::Point3;
+
+    use crate::partition::NCube;
+
+    type E3 = Point3<R64>;
+
+    // TODO: Provide features to implement `TreeData` for Euclidean spaces.
+    impl TreeData for E3 {
+        type Node = ();
+        type Leaf = E3;
+    }
+
+    // Sanity check. `rustc` can determine the `Link` type from `P` and `T`.
+    impl Node<NCube<E3>, E3> {
+        fn _test(&self) {
+            if let Some(branch) = self.topology().into_branch() {
+                let [_, _, ..] = branch.nodes();
+                for _ in branch.nodes().as_ref() {}
+            }
+        }
     }
 }

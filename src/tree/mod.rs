@@ -7,9 +7,9 @@ use crate::partition::Partition;
 use crate::tree::node::LinkTopology;
 use crate::Spatial;
 
-pub use crate::tree::node::{Branch, Leaf, Node, NodeTopology, Subdivided};
+pub use crate::tree::node::{Branch, Leaf, Link, Node, NodeTopology, Subdivided};
 
-type Dimension<P> = <<P as Spatial>::Space as FiniteDimensional>::N;
+pub type Dimension<P> = <<P as Spatial>::Space as FiniteDimensional>::N;
 
 pub trait TreeData {
     type Node;
