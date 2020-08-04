@@ -2,8 +2,12 @@ use theon::space::FiniteDimensional;
 use typenum::{NonZero, Unsigned, U2, U3};
 
 use crate::partition::Partition;
-use crate::tree::view::{AsNode, AsNodeMut, ClosedNode};
 use crate::tree::{Dimension, TreeData};
+
+pub trait ClosedNode {
+    type Partition: Partition;
+    type Data: TreeData;
+}
 
 pub trait Topology<N>
 where
@@ -91,44 +95,46 @@ where
     T: TreeData,
 {
     pub data: T::Node,
-    state: NodeState<P, T>,
-    partition: P,
+    pub(in crate::tree) state: NodeState<P, T>,
+    pub(in crate::tree) partition: P,
 }
 
 impl<P, T> Node<P, T>
 where
-    Branch<P, T>: AsSubdivisions<P, T>,
+    Branch<P, T>: Topology<Dimension<P>>,
     P: Partition,
     T: TreeData,
 {
-    #[cfg(test)] // Sanity check on `AsSubdivisions` constraint.
-    fn test(&self) {
+    pub fn partition(&self) -> &P {
+        &self.partition
+    }
+
+    pub fn as_branch(&self) -> Option<&Branch<P, T>> {
         match self.state {
-            NodeState::Branch(ref branch) => for node in branch.as_subdivisions() {},
-            _ => {}
+            NodeState::Branch(ref branch) => Some(branch),
+            _ => None,
         }
     }
-}
 
-impl<P, T> AsNode<P, T> for Node<P, T>
-where
-    Branch<P, T>: Topology<Dimension<P>>,
-    P: Partition,
-    T: TreeData,
-{
-    fn as_node(&self) -> &Node<P, T> {
-        self
+    pub fn as_branch_mut(&mut self) -> Option<&mut Branch<P, T>> {
+        match self.state {
+            NodeState::Branch(ref mut branch) => Some(branch),
+            _ => None,
+        }
     }
-}
 
-impl<P, T> AsNodeMut<P, T> for Node<P, T>
-where
-    Branch<P, T>: Topology<Dimension<P>>,
-    P: Partition,
-    T: TreeData,
-{
-    fn as_node_mut(&mut self) -> &mut Node<P, T> {
-        self
+    pub fn as_leaf(&self) -> Option<&Leaf<T>> {
+        match self.state {
+            NodeState::Leaf(ref leaf) => Some(leaf),
+            _ => None,
+        }
+    }
+
+    pub fn as_leaf_mut(&mut self) -> Option<&mut Leaf<T>> {
+        match self.state {
+            NodeState::Leaf(ref mut leaf) => Some(leaf),
+            _ => None,
+        }
     }
 }
 
