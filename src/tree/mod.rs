@@ -1,6 +1,7 @@
 mod node;
 
 use theon::space::FiniteDimensional;
+use theon::AsPosition;
 
 use crate::partition::Partition;
 use crate::tree::node::LinkTopology;
@@ -12,14 +13,7 @@ type Dimension<P> = <<P as Spatial>::Space as FiniteDimensional>::N;
 
 pub trait TreeData {
     type Node;
-    type Branch;
-    type Leaf;
-}
-
-impl TreeData for () {
-    type Node = ();
-    type Branch = ();
-    type Leaf = ();
+    type Leaf: AsPosition;
 }
 
 pub struct Tree<P, T>

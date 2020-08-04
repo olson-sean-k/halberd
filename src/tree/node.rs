@@ -22,29 +22,12 @@ where
     fn as_subdivision_slice_mut(&mut self) -> &mut [Node<P, T>];
 }
 
-impl<P, T> Subdivided<P, T> for Branch<P, T>
-where
-    Branch<P, T>: LinkTopology<Dimension<P>>,
-    <Branch<P, T> as LinkTopology<Dimension<P>>>::Link: AsRef<[Node<P, T>]> + AsMut<[Node<P, T>]>,
-    P: Partition,
-    T: TreeData,
-{
-    fn as_subdivision_slice(&self) -> &[Node<P, T>] {
-        self.nodes.as_ref().as_ref()
-    }
-
-    fn as_subdivision_slice_mut(&mut self) -> &mut [Node<P, T>] {
-        self.nodes.as_mut().as_mut()
-    }
-}
-
 pub struct Branch<P, T>
 where
     Self: LinkTopology<Dimension<P>>,
     P: Partition,
     T: TreeData,
 {
-    pub data: T::Branch,
     nodes: Box<<Self as LinkTopology<Dimension<P>>>::Link>,
 }
 
@@ -66,11 +49,27 @@ where
     type Link = [Node<P, T>; 8];
 }
 
+impl<P, T> Subdivided<P, T> for Branch<P, T>
+where
+    Branch<P, T>: LinkTopology<Dimension<P>>,
+    <Branch<P, T> as LinkTopology<Dimension<P>>>::Link: AsRef<[Node<P, T>]> + AsMut<[Node<P, T>]>,
+    P: Partition,
+    T: TreeData,
+{
+    fn as_subdivision_slice(&self) -> &[Node<P, T>] {
+        self.nodes.as_ref().as_ref()
+    }
+
+    fn as_subdivision_slice_mut(&mut self) -> &mut [Node<P, T>] {
+        self.nodes.as_mut().as_mut()
+    }
+}
+
 pub struct Leaf<T>
 where
     T: TreeData,
 {
-    pub data: T::Leaf,
+    data: Option<T::Leaf>,
 }
 
 pub enum NodeTopology<B, L> {
@@ -103,13 +102,6 @@ impl<B, L> NodeTopology<B, L> {
             NodeTopology::Leaf(ref leaf) => NodeTopology::Leaf(leaf),
         }
     }
-
-    fn to_mut(&mut self) -> NodeTopology<&mut B, &mut L> {
-        match self {
-            NodeTopology::Branch(ref mut branch) => NodeTopology::Branch(branch),
-            NodeTopology::Leaf(ref mut leaf) => NodeTopology::Leaf(leaf),
-        }
-    }
 }
 
 pub struct Node<P, T>
@@ -135,9 +127,5 @@ where
 
     pub fn topology(&self) -> NodeTopology<&Branch<P, T>, &Leaf<T>> {
         self.topology.to_ref()
-    }
-
-    pub fn topology_mut(&mut self) -> NodeTopology<&mut Branch<P, T>, &mut Leaf<T>> {
-        self.topology.to_mut()
     }
 }
