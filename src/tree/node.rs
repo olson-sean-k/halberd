@@ -4,11 +4,6 @@ use typenum::{NonZero, Unsigned, U2, U3};
 use crate::partition::Partition;
 use crate::tree::{Dimension, TreeData};
 
-pub trait ClosedNode {
-    type Partition: Partition;
-    type Data: TreeData;
-}
-
 pub trait Topology<N>
 where
     N: NonZero + Unsigned,
@@ -16,29 +11,29 @@ where
     type Link;
 }
 
-pub trait AsSubdivisions<P, T>: Topology<Dimension<P>>
+pub trait Subdivided<P, T>: Topology<Dimension<P>>
 where
     Branch<P, T>: Topology<Dimension<P>>,
     P: Partition,
     T: TreeData,
 {
-    fn as_subdivisions(&self) -> &[Node<P, T>];
+    fn as_subdivision_slice(&self) -> &[Node<P, T>];
 
-    fn as_subdivisions_mut(&mut self) -> &mut [Node<P, T>];
+    fn as_subdivision_slice_mut(&mut self) -> &mut [Node<P, T>];
 }
 
-impl<P, T> AsSubdivisions<P, T> for Branch<P, T>
+impl<P, T> Subdivided<P, T> for Branch<P, T>
 where
     Branch<P, T>: Topology<Dimension<P>>,
     <Branch<P, T> as Topology<Dimension<P>>>::Link: AsRef<[Node<P, T>]> + AsMut<[Node<P, T>]>,
     P: Partition,
     T: TreeData,
 {
-    fn as_subdivisions(&self) -> &[Node<P, T>] {
+    fn as_subdivision_slice(&self) -> &[Node<P, T>] {
         self.nodes.as_ref().as_ref()
     }
 
-    fn as_subdivisions_mut(&mut self) -> &mut [Node<P, T>] {
+    fn as_subdivision_slice_mut(&mut self) -> &mut [Node<P, T>] {
         self.nodes.as_mut().as_mut()
     }
 }
@@ -51,6 +46,21 @@ where
 {
     pub data: T::Branch,
     nodes: Box<<Self as Topology<Dimension<P>>>::Link>,
+}
+
+impl<P, T> Branch<P, T>
+where
+    Branch<P, T>: Subdivided<P, T>,
+    P: Partition,
+    T: TreeData,
+{
+    pub fn subdivisions(&self) -> impl Clone + ExactSizeIterator<Item = &Node<P, T>> {
+        self.as_subdivision_slice().iter()
+    }
+
+    pub fn subdivisions_mut(&mut self) -> impl ExactSizeIterator<Item = &mut Node<P, T>> {
+        self.as_subdivision_slice_mut().iter_mut()
+    }
 }
 
 impl<P, T> Topology<U2> for Branch<P, T>
@@ -95,8 +105,8 @@ where
     T: TreeData,
 {
     pub data: T::Node,
-    pub(in crate::tree) state: NodeState<P, T>,
-    pub(in crate::tree) partition: P,
+    state: NodeState<P, T>,
+    partition: P,
 }
 
 impl<P, T> Node<P, T>
@@ -136,14 +146,4 @@ where
             _ => None,
         }
     }
-}
-
-impl<P, T> ClosedNode for Node<P, T>
-where
-    Branch<P, T>: Topology<Dimension<P>>,
-    P: Partition,
-    T: TreeData,
-{
-    type Partition = P;
-    type Data = T;
 }
