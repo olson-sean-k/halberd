@@ -8,7 +8,7 @@ use crate::partition::Partition;
 use crate::Spatial;
 
 pub type Dimension<P> = <<P as Spatial>::Position as FiniteDimensional>::N;
-pub type Link<P, T> = <Branch<P, T> as LinkTopology<Dimension<P>>>::Link;
+pub type Link<P, T> = <Branch<P, T> as LinkTopology<Node<P, T>, Dimension<P>>>::Link;
 
 pub trait FromFn<T>: Sized {
     fn from_fn(f: impl FnMut() -> T) -> Self;
@@ -39,17 +39,16 @@ pub trait TreeData {
     type Leaf: AsPosition;
 }
 
-pub trait LinkTopology<N>
+pub trait LinkTopology<T, N>
 where
     N: NonZero + Unsigned,
 {
-    type Link;
+    type Link: AsMut<[T]> + AsRef<[T]> + FromFn<T>;
 }
 
-pub trait Subdivided<P, T>: LinkTopology<Dimension<P>>
+pub trait Subdivided<P, T>: LinkTopology<Node<P, T>, Dimension<P>>
 where
-    Branch<P, T>: LinkTopology<Dimension<P>>,
-    Link<P, T>: AsRef<[Node<P, T>]> + AsMut<[Node<P, T>]> + FromFn<Node<P, T>>,
+    Branch<P, T>: LinkTopology<Node<P, T>, Dimension<P>>,
     P: Partition,
     T: TreeData,
     T::Leaf: AsPosition<Position = P::Position>,
@@ -59,14 +58,15 @@ where
 
 pub struct Branch<P, T>
 where
-    Self: LinkTopology<Dimension<P>>,
+    Self: LinkTopology<Node<P, T>, Dimension<P>>,
     P: Partition,
     T: TreeData,
+    T::Leaf: AsPosition<Position = P::Position>,
 {
-    nodes: Box<<Self as LinkTopology<Dimension<P>>>::Link>,
+    nodes: Box<Link<P, T>>,
 }
 
-impl<P, T> LinkTopology<U2> for Branch<P, T>
+impl<P, T> LinkTopology<Node<P, T>, U2> for Branch<P, T>
 where
     P: Partition,
     P::Position: FiniteDimensional<N = U2>,
@@ -76,7 +76,7 @@ where
     type Link = [Node<P, T>; 4];
 }
 
-impl<P, T> LinkTopology<U3> for Branch<P, T>
+impl<P, T> LinkTopology<Node<P, T>, U3> for Branch<P, T>
 where
     P: Partition,
     P::Position: FiniteDimensional<N = U3>,
@@ -88,8 +88,7 @@ where
 
 impl<P, T> Subdivided<P, T> for Branch<P, T>
 where
-    Branch<P, T>: LinkTopology<Dimension<P>>,
-    Link<P, T>: AsRef<[Node<P, T>]> + AsMut<[Node<P, T>]> + FromFn<Node<P, T>>,
+    Branch<P, T>: LinkTopology<Node<P, T>, Dimension<P>>,
     P: Partition,
     T: TreeData,
     T::Leaf: AsPosition<Position = P::Position>,
@@ -149,7 +148,7 @@ impl<B, L> NodeTopology<B, L> {
 
 impl<P, T> NodeTopology<Branch<P, T>, Leaf<T>>
 where
-    Branch<P, T>: LinkTopology<Dimension<P>>,
+    Branch<P, T>: LinkTopology<Node<P, T>, Dimension<P>>,
     P: Partition,
     T: TreeData,
     T::Leaf: AsPosition<Position = P::Position>,
@@ -161,7 +160,7 @@ where
 
 pub struct Node<P, T>
 where
-    Branch<P, T>: LinkTopology<Dimension<P>>,
+    Branch<P, T>: LinkTopology<Node<P, T>, Dimension<P>>,
     P: Partition,
     T: TreeData,
     T::Leaf: AsPosition<Position = P::Position>,
@@ -173,15 +172,12 @@ where
 
 impl<P, T> Node<P, T>
 where
-    Branch<P, T>: LinkTopology<Dimension<P>>,
+    Branch<P, T>: LinkTopology<Node<P, T>, Dimension<P>>,
     P: Partition,
     T: TreeData,
     T::Leaf: AsPosition<Position = P::Position>,
 {
-    fn insert(&mut self, position: T::Leaf)
-    where
-        Link<P, T>: AsMut<[Node<P, T>]> + FromFn<Node<P, T>>,
-    {
+    fn insert(&mut self, position: T::Leaf) {
         let dispatch = |nodes: &mut Link<P, T>, partition: &P, position: T::Leaf| {
             let nodes = nodes.as_mut().as_mut();
             nodes[partition.index_unchecked(position.as_position())].insert(position);
@@ -231,7 +227,7 @@ where
 
 pub struct Tree<P, T>
 where
-    Branch<P, T>: LinkTopology<Dimension<P>>,
+    Branch<P, T>: LinkTopology<Node<P, T>, Dimension<P>>,
     P: Partition,
     T: TreeData,
     T::Leaf: AsPosition<Position = P::Position>,
@@ -241,15 +237,12 @@ where
 
 impl<P, T> Tree<P, T>
 where
-    Branch<P, T>: LinkTopology<Dimension<P>>,
+    Branch<P, T>: LinkTopology<Node<P, T>, Dimension<P>>,
     P: Partition,
     T: TreeData,
     T::Leaf: AsPosition<Position = P::Position>,
 {
-    pub fn insert(&mut self, position: T::Leaf) -> Result<(), ()>
-    where
-        Link<P, T>: AsMut<[Node<P, T>]> + FromFn<Node<P, T>>,
-    {
+    pub fn insert(&mut self, position: T::Leaf) -> Result<(), ()> {
         self.root
             .partition
             .contains(position.as_position())
