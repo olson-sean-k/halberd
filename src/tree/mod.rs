@@ -1,3 +1,5 @@
+mod array;
+
 use fool::BoolExt;
 use std::mem;
 use theon::space::FiniteDimensional;
@@ -5,34 +7,11 @@ use theon::AsPosition;
 use typenum::{NonZero, Unsigned, U2, U3};
 
 use crate::partition::Partition;
+use crate::tree::array::FromFn;
 use crate::Spatial;
 
 pub type Dimension<P> = <<P as Spatial>::Position as FiniteDimensional>::N;
 pub type Link<P, T> = <Branch<P, T> as LinkTopology<Node<P, T>, Dimension<P>>>::Link;
-
-pub trait FromFn<T>: Sized {
-    fn from_fn(f: impl FnMut() -> T) -> Self;
-
-    fn from_iter<I>(input: I) -> Self
-    where
-        I: IntoIterator<Item = T>,
-    {
-        let mut input = input.into_iter();
-        Self::from_fn(move || input.next().expect(""))
-    }
-}
-
-impl<T> FromFn<T> for [T; 4] {
-    fn from_fn(mut f: impl FnMut() -> T) -> Self {
-        [f(), f(), f(), f()]
-    }
-}
-
-impl<T> FromFn<T> for [T; 8] {
-    fn from_fn(mut f: impl FnMut() -> T) -> Self {
-        [f(), f(), f(), f(), f(), f(), f(), f()]
-    }
-}
 
 pub trait TreeData {
     type Node: Default;
@@ -177,19 +156,19 @@ where
     T: TreeData,
     T::Leaf: AsPosition<Position = P::Position>,
 {
-    fn insert(&mut self, position: T::Leaf) {
-        let dispatch = |nodes: &mut Link<P, T>, partition: &P, position: T::Leaf| {
+    fn insert(&mut self, data: T::Leaf) {
+        let dispatch = |nodes: &mut Link<P, T>, partition: &P, data: T::Leaf| {
             let nodes = nodes.as_mut().as_mut();
-            nodes[partition.index_unchecked(position.as_position())].insert(position);
+            nodes[partition.index_unchecked(data.as_position())].insert(data);
         };
         let mut topology = NodeTopology::empty();
         mem::swap(&mut topology, &mut self.topology);
         self.topology = match topology {
-            NodeTopology::Leaf(Leaf { data: None }) => NodeTopology::Leaf(Leaf {
-                data: Some(position),
-            }),
+            NodeTopology::Leaf(Leaf { data: None }) => {
+                NodeTopology::Leaf(Leaf { data: Some(data) })
+            }
             NodeTopology::Leaf(Leaf {
-                data: Some(reposition),
+                data: Some(repartition),
             }) => {
                 let mut nodes = Box::new(Link::<P, T>::from_iter(
                     self.partition
@@ -201,12 +180,12 @@ where
                             partition,
                         }),
                 ));
-                dispatch(&mut nodes, &self.partition, position);
-                dispatch(&mut nodes, &self.partition, reposition);
+                dispatch(&mut nodes, &self.partition, data);
+                dispatch(&mut nodes, &self.partition, repartition);
                 NodeTopology::Branch(Branch { nodes })
             }
             NodeTopology::Branch(Branch { mut nodes }) => {
-                dispatch(&mut nodes, &self.partition, position);
+                dispatch(&mut nodes, &self.partition, data);
                 NodeTopology::Branch(Branch { nodes })
             }
         };
@@ -242,12 +221,12 @@ where
     T: TreeData,
     T::Leaf: AsPosition<Position = P::Position>,
 {
-    pub fn insert(&mut self, position: T::Leaf) -> Result<(), ()> {
+    pub fn insert(&mut self, data: T::Leaf) -> Result<(), ()> {
         self.root
             .partition
-            .contains(position.as_position())
+            .contains(data.as_position())
             .ok_or_else(|| ())?;
-        self.root.insert(position);
+        self.root.insert(data);
         Ok(())
     }
 
