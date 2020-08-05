@@ -19,5 +19,5 @@ where
 }
 
 pub trait Spatial {
-    type Space: EuclideanSpace + FiniteDimensional;
+    type Position: EuclideanSpace + FiniteDimensional;
 }

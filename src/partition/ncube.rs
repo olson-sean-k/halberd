@@ -43,11 +43,11 @@ where
     Aabb<S>: Intersection<S>,
     Vector<S>: Converged,
 {
-    fn contains(&self, point: &Self::Space) -> bool {
+    fn contains(&self, point: &Self::Position) -> bool {
         self.aabb().intersection(point).is_some()
     }
 
-    fn index_unchecked(&self, point: &Self::Space) -> usize {
+    fn index_unchecked(&self, point: &Self::Position) -> usize {
         let mut dimension = 0usize;
         point
             .zip_map(self.center(), |x, c| {
@@ -63,7 +63,7 @@ impl<S> Spatial for NCube<S>
 where
     S: EuclideanSpace + FiniteDimensional,
 {
-    type Space = S;
+    type Position = S;
 }
 
 impl<S> Subdivide for NCube<S>

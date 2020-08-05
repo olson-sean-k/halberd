@@ -1,3 +1,5 @@
+use fool::BoolExt;
+use std::mem;
 use theon::space::FiniteDimensional;
 use theon::AsPosition;
 use typenum::{NonZero, Unsigned, U2, U3};
@@ -5,11 +7,35 @@ use typenum::{NonZero, Unsigned, U2, U3};
 use crate::partition::Partition;
 use crate::Spatial;
 
-pub type Dimension<P> = <<P as Spatial>::Space as FiniteDimensional>::N;
+pub type Dimension<P> = <<P as Spatial>::Position as FiniteDimensional>::N;
 pub type Link<P, T> = <Branch<P, T> as LinkTopology<Dimension<P>>>::Link;
 
+pub trait FromFn<T>: Sized {
+    fn from_fn(f: impl FnMut() -> T) -> Self;
+
+    fn from_iter<I>(input: I) -> Self
+    where
+        I: IntoIterator<Item = T>,
+    {
+        let mut input = input.into_iter();
+        Self::from_fn(move || input.next().expect(""))
+    }
+}
+
+impl<T> FromFn<T> for [T; 4] {
+    fn from_fn(mut f: impl FnMut() -> T) -> Self {
+        [f(), f(), f(), f()]
+    }
+}
+
+impl<T> FromFn<T> for [T; 8] {
+    fn from_fn(mut f: impl FnMut() -> T) -> Self {
+        [f(), f(), f(), f(), f(), f(), f(), f()]
+    }
+}
+
 pub trait TreeData {
-    type Node;
+    type Node: Default;
     type Leaf: AsPosition;
 }
 
@@ -23,9 +49,10 @@ where
 pub trait Subdivided<P, T>: LinkTopology<Dimension<P>>
 where
     Branch<P, T>: LinkTopology<Dimension<P>>,
-    Link<P, T>: AsRef<[Node<P, T>]> + AsMut<[Node<P, T>]>,
+    Link<P, T>: AsRef<[Node<P, T>]> + AsMut<[Node<P, T>]> + FromFn<Node<P, T>>,
     P: Partition,
     T: TreeData,
+    T::Leaf: AsPosition<Position = P::Position>,
 {
     fn nodes(&self) -> &Link<P, T>;
 }
@@ -42,8 +69,9 @@ where
 impl<P, T> LinkTopology<U2> for Branch<P, T>
 where
     P: Partition,
-    P::Space: FiniteDimensional<N = U2>,
+    P::Position: FiniteDimensional<N = U2>,
     T: TreeData,
+    T::Leaf: AsPosition<Position = P::Position>,
 {
     type Link = [Node<P, T>; 4];
 }
@@ -51,8 +79,9 @@ where
 impl<P, T> LinkTopology<U3> for Branch<P, T>
 where
     P: Partition,
-    P::Space: FiniteDimensional<N = U3>,
+    P::Position: FiniteDimensional<N = U3>,
     T: TreeData,
+    T::Leaf: AsPosition<Position = P::Position>,
 {
     type Link = [Node<P, T>; 8];
 }
@@ -60,9 +89,10 @@ where
 impl<P, T> Subdivided<P, T> for Branch<P, T>
 where
     Branch<P, T>: LinkTopology<Dimension<P>>,
-    Link<P, T>: AsRef<[Node<P, T>]> + AsMut<[Node<P, T>]>,
+    Link<P, T>: AsRef<[Node<P, T>]> + AsMut<[Node<P, T>]> + FromFn<Node<P, T>>,
     P: Partition,
     T: TreeData,
+    T::Leaf: AsPosition<Position = P::Position>,
 {
     fn nodes(&self) -> &Link<P, T> {
         self.nodes.as_ref()
@@ -74,6 +104,15 @@ where
     T: TreeData,
 {
     data: Option<T::Leaf>,
+}
+
+impl<T> Leaf<T>
+where
+    T: TreeData,
+{
+    pub fn get(&self) -> Option<&T::Leaf> {
+        self.data.as_ref()
+    }
 }
 
 pub enum NodeTopology<B, L> {
@@ -108,11 +147,24 @@ impl<B, L> NodeTopology<B, L> {
     }
 }
 
+impl<P, T> NodeTopology<Branch<P, T>, Leaf<T>>
+where
+    Branch<P, T>: LinkTopology<Dimension<P>>,
+    P: Partition,
+    T: TreeData,
+    T::Leaf: AsPosition<Position = P::Position>,
+{
+    fn empty() -> Self {
+        NodeTopology::Leaf(Leaf { data: None })
+    }
+}
+
 pub struct Node<P, T>
 where
     Branch<P, T>: LinkTopology<Dimension<P>>,
     P: Partition,
     T: TreeData,
+    T::Leaf: AsPosition<Position = P::Position>,
 {
     data: T::Node,
     topology: NodeTopology<Branch<P, T>, Leaf<T>>,
@@ -124,13 +176,56 @@ where
     Branch<P, T>: LinkTopology<Dimension<P>>,
     P: Partition,
     T: TreeData,
+    T::Leaf: AsPosition<Position = P::Position>,
 {
-    pub fn partition(&self) -> &P {
-        &self.partition
+    fn insert(&mut self, position: T::Leaf)
+    where
+        Link<P, T>: AsMut<[Node<P, T>]> + FromFn<Node<P, T>>,
+    {
+        let dispatch = |nodes: &mut Link<P, T>, partition: &P, position: T::Leaf| {
+            let nodes = nodes.as_mut().as_mut();
+            nodes[partition.index_unchecked(position.as_position())].insert(position);
+        };
+        let mut topology = NodeTopology::empty();
+        mem::swap(&mut topology, &mut self.topology);
+        self.topology = match topology {
+            NodeTopology::Leaf(Leaf { data: None }) => NodeTopology::Leaf(Leaf {
+                data: Some(position),
+            }),
+            NodeTopology::Leaf(Leaf {
+                data: Some(reposition),
+            }) => {
+                let mut nodes = Box::new(Link::<P, T>::from_iter(
+                    self.partition
+                        .subdivide()
+                        .into_iter()
+                        .map(|partition| Node {
+                            data: Default::default(),
+                            topology: NodeTopology::empty(),
+                            partition,
+                        }),
+                ));
+                dispatch(&mut nodes, &self.partition, position);
+                dispatch(&mut nodes, &self.partition, reposition);
+                NodeTopology::Branch(Branch { nodes })
+            }
+            NodeTopology::Branch(Branch { mut nodes }) => {
+                dispatch(&mut nodes, &self.partition, position);
+                NodeTopology::Branch(Branch { nodes })
+            }
+        };
+    }
+
+    pub fn get(&self) -> &T::Node {
+        &self.data
     }
 
     pub fn topology(&self) -> NodeTopology<&Branch<P, T>, &Leaf<T>> {
         self.topology.to_ref()
+    }
+
+    pub fn partition(&self) -> &P {
+        &self.partition
     }
 }
 
@@ -139,6 +234,7 @@ where
     Branch<P, T>: LinkTopology<Dimension<P>>,
     P: Partition,
     T: TreeData,
+    T::Leaf: AsPosition<Position = P::Position>,
 {
     root: Node<P, T>,
 }
@@ -148,7 +244,20 @@ where
     Branch<P, T>: LinkTopology<Dimension<P>>,
     P: Partition,
     T: TreeData,
+    T::Leaf: AsPosition<Position = P::Position>,
 {
+    pub fn insert(&mut self, position: T::Leaf) -> Result<(), ()>
+    where
+        Link<P, T>: AsMut<[Node<P, T>]> + FromFn<Node<P, T>>,
+    {
+        self.root
+            .partition
+            .contains(position.as_position())
+            .ok_or_else(|| ())?;
+        self.root.insert(position);
+        Ok(())
+    }
+
     pub fn as_root_node(&self) -> &Node<P, T> {
         &self.root
     }
