@@ -1,3 +1,4 @@
+// TODO: Support error propagation.
 pub trait FromFn<T>: Sized {
     fn from_fn(f: impl FnMut() -> T) -> Self;
 
