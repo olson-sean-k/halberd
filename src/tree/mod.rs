@@ -156,6 +156,31 @@ where
     T: TreeData,
     T::Leaf: AsPosition<Position = P::Position>,
 {
+    fn recompute<F>(&mut self, f: F)
+    where
+        F: Fn(NodeTopology<(&T::Node, &T::Node), &T::Leaf>) -> T::Node,
+    {
+        self.data = match self.topology {
+            NodeTopology::Leaf(Leaf { data: None }) => Default::default(),
+            NodeTopology::Leaf(Leaf {
+                data: Some(ref data),
+            }) => f(NodeTopology::Leaf(data)),
+            NodeTopology::Branch(Branch { ref mut nodes }) => {
+                for node in nodes.as_mut().as_mut() {
+                    node.recompute(|data| f(data));
+                }
+                nodes
+                    .as_ref()
+                    .as_ref()
+                    .iter()
+                    .map(|node| &node.data)
+                    .fold(Default::default(), |base, next| {
+                        f(NodeTopology::Branch((&base, next)))
+                    })
+            }
+        };
+    }
+
     fn insert(&mut self, data: T::Leaf) {
         let dispatch = |nodes: &mut Link<P, T>, partition: &P, data: T::Leaf| {
             let nodes = nodes.as_mut().as_mut();
@@ -221,12 +246,29 @@ where
     T: TreeData,
     T::Leaf: AsPosition<Position = P::Position>,
 {
-    pub fn insert(&mut self, data: T::Leaf) -> Result<(), ()> {
+    pub fn insert(&mut self, data: T::Leaf) -> Result<(), ()>
+    where
+        T: TreeData<Node = ()>,
+    {
         self.root
             .partition
             .contains(data.as_position())
             .ok_or_else(|| ())?;
         self.root.insert(data);
+        Ok(())
+    }
+
+    pub fn insert_with<F>(&mut self, data: T::Leaf, f: F) -> Result<(), ()>
+    where
+        F: Fn(NodeTopology<(&T::Node, &T::Node), &T::Leaf>) -> T::Node,
+    {
+        // TODO: Factor out code that is common to `insert` and `insert_with`.
+        self.root
+            .partition
+            .contains(data.as_position())
+            .ok_or_else(|| ())?;
+        self.root.insert(data);
+        self.root.recompute(f);
         Ok(())
     }
 
