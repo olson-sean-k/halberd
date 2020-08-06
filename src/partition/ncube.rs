@@ -10,8 +10,8 @@ pub struct NCube<S>
 where
     S: EuclideanSpace,
 {
-    origin: S,
-    width: Scalar<S>,
+    pub origin: S,
+    pub width: Scalar<S>,
 }
 
 impl<S> NCube<S>

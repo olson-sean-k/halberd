@@ -236,6 +236,36 @@ where
     T: TreeData,
     T::Leaf: AsPosition<Position = P::Position>,
 {
+    pub fn empty(partition: P) -> Self {
+        Tree {
+            root: Node {
+                data: Default::default(),
+                topology: NodeTopology::empty(),
+                partition,
+            },
+        }
+    }
+
+    pub fn from_iter<I>(partition: P, input: I) -> Result<Self, ()>
+    where
+        T: TreeData<Node = ()>,
+        I: IntoIterator<Item = T::Leaf>,
+    {
+        let mut mutation = Mutation::from(Tree::empty(partition));
+        mutation.append(input)?;
+        Ok(mutation.commit())
+    }
+
+    pub fn from_iter_with<I, F>(partition: P, input: I, f: F) -> Result<Self, ()>
+    where
+        I: IntoIterator<Item = T::Leaf>,
+        F: Fn(NodeTopology<(&T::Node, &T::Node), &T::Leaf>) -> T::Node,
+    {
+        let mut mutation = Mutation::from(Tree::empty(partition));
+        mutation.append(input)?;
+        Ok(mutation.commit_with(f))
+    }
+
     pub fn mutate(self) -> Mutation<P, T> {
         self.into()
     }
@@ -270,6 +300,13 @@ where
             .ok_or_else(|| ())?;
         self.tree.root.insert(data);
         Ok(())
+    }
+
+    pub fn append<I>(&mut self, input: I) -> Result<(), ()>
+    where
+        I: IntoIterator<Item = T::Leaf>,
+    {
+        input.into_iter().map(|data| self.insert(data)).collect()
     }
 
     pub fn commit(self) -> Tree<P, T>
