@@ -25,16 +25,6 @@ where
     type Link: AsMut<[T]> + AsRef<[T]> + FromFn<T>;
 }
 
-pub trait Subdivided<P, T>: LinkTopology<Node<P, T>, Dimension<P>>
-where
-    Branch<P, T>: LinkTopology<Node<P, T>, Dimension<P>>,
-    P: Partition,
-    T: TreeData,
-    T::Leaf: AsPosition<Position = P::Position>,
-{
-    fn nodes(&self) -> &Link<P, T>;
-}
-
 pub struct Branch<P, T>
 where
     Self: LinkTopology<Node<P, T>, Dimension<P>>,
@@ -43,6 +33,18 @@ where
     T::Leaf: AsPosition<Position = P::Position>,
 {
     nodes: Box<Link<P, T>>,
+}
+
+impl<P, T> Branch<P, T>
+where
+    Self: LinkTopology<Node<P, T>, Dimension<P>>,
+    P: Partition,
+    T: TreeData,
+    T::Leaf: AsPosition<Position = P::Position>,
+{
+    pub fn nodes(&self) -> &Link<P, T> {
+        self.nodes.as_ref()
+    }
 }
 
 impl<P, T> LinkTopology<Node<P, T>, U2> for Branch<P, T>
@@ -63,18 +65,6 @@ where
     T::Leaf: AsPosition<Position = P::Position>,
 {
     type Link = [Node<P, T>; 8];
-}
-
-impl<P, T> Subdivided<P, T> for Branch<P, T>
-where
-    Branch<P, T>: LinkTopology<Node<P, T>, Dimension<P>>,
-    P: Partition,
-    T: TreeData,
-    T::Leaf: AsPosition<Position = P::Position>,
-{
-    fn nodes(&self) -> &Link<P, T> {
-        self.nodes.as_ref()
-    }
 }
 
 pub struct Leaf<T>
