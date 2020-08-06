@@ -1,57 +1,16 @@
 use std::mem;
-use theon::space::{EuclideanSpace, FiniteDimensional};
 use theon::AsPosition;
-use typenum::{NonZero, Unsigned, U2, U3};
 
-use crate::partition::{NCube, Partition};
-use crate::tree::array::FromFn;
+use crate::partition::Partition;
 use crate::tree::TreeData;
-use crate::Spatial;
-
-pub type Dimension<P> = <<P as Spatial>::Position as FiniteDimensional>::N;
-pub type Link<P, T> = <Branch<P, T> as LinkTopology<Node<P, T>, Dimension<P>>>::Link;
-
-pub trait LinkTopology<T, N>
-where
-    N: NonZero + Unsigned,
-{
-    type Link: AsMut<[T]> + AsRef<[T]> + FromFn<T>;
-}
 
 pub struct Branch<P, T>
 where
-    Self: LinkTopology<Node<P, T>, Dimension<P>>,
     P: Partition,
     T: TreeData,
     T::Leaf: AsPosition<Position = P::Position>,
 {
-    nodes: Box<Link<P, T>>,
-}
-
-// TODO: It is not possible to use associated types and `typenum` to convey this
-//       information, because the compiler cannot prove that the implementations
-//       of `FromFn` for arrays are present for some associated constant. This
-//       makes it difficult for partitioning schemes to combine with this
-//       complex trait. It would be very difficult for users to introduce
-//       partitioning!
-impl<T, S> LinkTopology<Node<NCube<S>, T>, U2> for Branch<NCube<S>, T>
-where
-    NCube<S>: Partition<Position = S>,
-    S: EuclideanSpace + FiniteDimensional<N = U2>,
-    T: TreeData,
-    T::Leaf: AsPosition<Position = S>,
-{
-    type Link = [Node<NCube<S>, T>; 4];
-}
-
-impl<T, S> LinkTopology<Node<NCube<S>, T>, U3> for Branch<NCube<S>, T>
-where
-    NCube<S>: Partition<Position = S>,
-    S: EuclideanSpace + FiniteDimensional<N = U3>,
-    T: TreeData,
-    T::Leaf: AsPosition<Position = S>,
-{
-    type Link = [Node<NCube<S>, T>; 8];
+    nodes: Vec<Node<P, T>>,
 }
 
 pub struct Leaf<T>
@@ -70,14 +29,14 @@ where
     }
 }
 
-pub enum NodeTopology<B, L> {
+pub enum Topology<B, L> {
     Branch(B),
     Leaf(L),
 }
 
-impl<B, L> NodeTopology<B, L> {
+impl<B, L> Topology<B, L> {
     pub fn into_branch(self) -> Option<B> {
-        if let NodeTopology::Branch(branch) = self {
+        if let Topology::Branch(branch) = self {
             Some(branch)
         }
         else {
@@ -86,7 +45,7 @@ impl<B, L> NodeTopology<B, L> {
     }
 
     pub fn into_leaf(self) -> Option<L> {
-        if let NodeTopology::Leaf(leaf) = self {
+        if let Topology::Leaf(leaf) = self {
             Some(leaf)
         }
         else {
@@ -94,41 +53,38 @@ impl<B, L> NodeTopology<B, L> {
         }
     }
 
-    fn to_ref(&self) -> NodeTopology<&B, &L> {
+    fn to_ref(&self) -> Topology<&B, &L> {
         match self {
-            NodeTopology::Branch(ref branch) => NodeTopology::Branch(branch),
-            NodeTopology::Leaf(ref leaf) => NodeTopology::Leaf(leaf),
+            Topology::Branch(ref branch) => Topology::Branch(branch),
+            Topology::Leaf(ref leaf) => Topology::Leaf(leaf),
         }
     }
 }
 
-impl<P, T> NodeTopology<Branch<P, T>, Leaf<T>>
+impl<P, T> Topology<Branch<P, T>, Leaf<T>>
 where
-    Branch<P, T>: LinkTopology<Node<P, T>, Dimension<P>>,
     P: Partition,
     T: TreeData,
     T::Leaf: AsPosition<Position = P::Position>,
 {
     fn empty() -> Self {
-        NodeTopology::Leaf(Leaf { data: None })
+        Topology::Leaf(Leaf { data: None })
     }
 }
 
 pub struct Node<P, T>
 where
-    Branch<P, T>: LinkTopology<Node<P, T>, Dimension<P>>,
     P: Partition,
     T: TreeData,
     T::Leaf: AsPosition<Position = P::Position>,
 {
     data: T::Node,
-    topology: NodeTopology<Branch<P, T>, Leaf<T>>,
+    topology: Topology<Branch<P, T>, Leaf<T>>,
     partition: P,
 }
 
 impl<P, T> Node<P, T>
 where
-    Branch<P, T>: LinkTopology<Node<P, T>, Dimension<P>>,
     P: Partition,
     T: TreeData,
     T::Leaf: AsPosition<Position = P::Position>,
@@ -136,67 +92,62 @@ where
     pub(in crate::tree) fn empty(partition: P, data: T::Node) -> Self {
         Node {
             data,
-            topology: NodeTopology::empty(),
+            topology: Topology::empty(),
             partition,
         }
     }
 
     pub(in crate::tree) fn recompute<F>(&mut self, f: F)
     where
-        F: Fn(NodeTopology<(&T::Node, &T::Node), &T::Leaf>) -> T::Node,
+        F: Fn(Topology<(&T::Node, &T::Node), &T::Leaf>) -> T::Node,
     {
         self.data = match self.topology {
-            NodeTopology::Leaf(Leaf { data: None }) => Default::default(),
-            NodeTopology::Leaf(Leaf {
+            Topology::Leaf(Leaf { data: None }) => Default::default(),
+            Topology::Leaf(Leaf {
                 data: Some(ref data),
-            }) => f(NodeTopology::Leaf(data)),
-            NodeTopology::Branch(Branch { ref mut nodes }) => {
-                for node in nodes.as_mut().as_mut() {
+            }) => f(Topology::Leaf(data)),
+            Topology::Branch(Branch { ref mut nodes }) => {
+                for node in nodes.iter_mut() {
                     node.recompute(|data| f(data));
                 }
                 nodes
-                    .as_ref()
-                    .as_ref()
                     .iter()
                     .map(|node| &node.data)
                     .fold(Default::default(), |base, next| {
-                        f(NodeTopology::Branch((&base, next)))
+                        f(Topology::Branch((&base, next)))
                     })
             }
         };
     }
 
     pub(in crate::tree) fn insert(&mut self, data: T::Leaf) {
-        let dispatch = |nodes: &mut Link<P, T>, partition: &P, data: T::Leaf| {
-            let nodes = nodes.as_mut().as_mut();
+        let dispatch = |nodes: &mut Vec<Node<P, T>>, partition: &P, data: T::Leaf| {
             nodes[partition.index_unchecked(data.as_position())].insert(data);
         };
-        let mut topology = NodeTopology::empty();
+        let mut topology = Topology::empty();
         mem::swap(&mut topology, &mut self.topology);
         self.topology = match topology {
-            NodeTopology::Leaf(Leaf { data: None }) => {
-                NodeTopology::Leaf(Leaf { data: Some(data) })
-            }
-            NodeTopology::Leaf(Leaf {
+            Topology::Leaf(Leaf { data: None }) => Topology::Leaf(Leaf { data: Some(data) }),
+            Topology::Leaf(Leaf {
                 data: Some(repartition),
             }) => {
-                let mut nodes = Box::new(Link::<P, T>::from_iter(
-                    self.partition
-                        .subdivide()
-                        .into_iter()
-                        .map(|partition| Node {
-                            data: Default::default(),
-                            topology: NodeTopology::empty(),
-                            partition,
-                        }),
-                ));
+                let mut nodes = self
+                    .partition
+                    .subdivide()
+                    .into_iter()
+                    .map(|partition| Node {
+                        data: Default::default(),
+                        topology: Topology::empty(),
+                        partition,
+                    })
+                    .collect();
                 dispatch(&mut nodes, &self.partition, data);
                 dispatch(&mut nodes, &self.partition, repartition);
-                NodeTopology::Branch(Branch { nodes })
+                Topology::Branch(Branch { nodes })
             }
-            NodeTopology::Branch(Branch { mut nodes }) => {
+            Topology::Branch(Branch { mut nodes }) => {
                 dispatch(&mut nodes, &self.partition, data);
-                NodeTopology::Branch(Branch { nodes })
+                Topology::Branch(Branch { nodes })
             }
         };
     }

@@ -1,13 +1,11 @@
-mod array;
 mod node;
 
 use fool::BoolExt as _;
 use theon::AsPosition;
 
 use crate::partition::Partition;
-use crate::tree::node::{Branch, LinkTopology};
 
-pub use crate::tree::node::{Dimension, Leaf, Node, NodeTopology};
+pub use crate::tree::node::{Leaf, Node, Topology};
 
 pub trait TreeData {
     type Node: Default;
@@ -16,7 +14,6 @@ pub trait TreeData {
 
 pub struct Tree<P, T>
 where
-    Branch<P, T>: LinkTopology<Node<P, T>, Dimension<P>>,
     P: Partition,
     T: TreeData,
     T::Leaf: AsPosition<Position = P::Position>,
@@ -26,7 +23,6 @@ where
 
 impl<P, T> Tree<P, T>
 where
-    Branch<P, T>: LinkTopology<Node<P, T>, Dimension<P>>,
     P: Partition,
     T: TreeData,
     T::Leaf: AsPosition<Position = P::Position>,
@@ -50,7 +46,7 @@ where
     pub fn from_iter_with<I, F>(partition: P, input: I, f: F) -> Result<Self, ()>
     where
         I: IntoIterator<Item = T::Leaf>,
-        F: Fn(NodeTopology<(&T::Node, &T::Node), &T::Leaf>) -> T::Node,
+        F: Fn(Topology<(&T::Node, &T::Node), &T::Leaf>) -> T::Node,
     {
         let mut mutation = Mutation::from(Tree::empty(partition));
         mutation.append(input)?;
@@ -64,7 +60,6 @@ where
 
 pub struct Mutation<P, T>
 where
-    Branch<P, T>: LinkTopology<Node<P, T>, Dimension<P>>,
     P: Partition,
     T: TreeData,
     T::Leaf: AsPosition<Position = P::Position>,
@@ -74,7 +69,6 @@ where
 
 impl<P, T> Mutation<P, T>
 where
-    Branch<P, T>: LinkTopology<Node<P, T>, Dimension<P>>,
     P: Partition,
     T: TreeData,
     T::Leaf: AsPosition<Position = P::Position>,
@@ -105,7 +99,7 @@ where
 
     pub fn commit_with<F>(self, f: F) -> Tree<P, T>
     where
-        F: Fn(NodeTopology<(&T::Node, &T::Node), &T::Leaf>) -> T::Node,
+        F: Fn(Topology<(&T::Node, &T::Node), &T::Leaf>) -> T::Node,
     {
         let Mutation { mut tree } = self;
         tree.root.recompute(f);
@@ -115,7 +109,6 @@ where
 
 impl<P, T> From<Tree<P, T>> for Mutation<P, T>
 where
-    Branch<P, T>: LinkTopology<Node<P, T>, Dimension<P>>,
     P: Partition,
     T: TreeData,
     T::Leaf: AsPosition<Position = P::Position>,
