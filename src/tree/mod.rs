@@ -246,38 +246,68 @@ where
     T: TreeData,
     T::Leaf: AsPosition<Position = P::Position>,
 {
-    pub fn insert(&mut self, data: T::Leaf) -> Result<(), ()>
-    where
-        T: TreeData<Node = ()>,
-    {
-        self.root
-            .partition
-            .contains(data.as_position())
-            .ok_or_else(|| ())?;
-        self.root.insert(data);
-        Ok(())
-    }
-
-    pub fn insert_with<F>(&mut self, data: T::Leaf, f: F) -> Result<(), ()>
-    where
-        F: Fn(NodeTopology<(&T::Node, &T::Node), &T::Leaf>) -> T::Node,
-    {
-        // TODO: Factor out code that is common to `insert` and `insert_with`.
-        self.root
-            .partition
-            .contains(data.as_position())
-            .ok_or_else(|| ())?;
-        self.root.insert(data);
-        self.root.recompute(f);
-        Ok(())
+    pub fn mutate(self) -> Mutation<P, T> {
+        self.into()
     }
 
     pub fn as_root_node(&self) -> &Node<P, T> {
         &self.root
     }
+}
 
-    pub fn as_root_node_mut(&mut self) -> &mut Node<P, T> {
-        &mut self.root
+pub struct Mutation<P, T>
+where
+    Branch<P, T>: LinkTopology<Node<P, T>, Dimension<P>>,
+    P: Partition,
+    T: TreeData,
+    T::Leaf: AsPosition<Position = P::Position>,
+{
+    tree: Tree<P, T>,
+}
+
+impl<P, T> Mutation<P, T>
+where
+    Branch<P, T>: LinkTopology<Node<P, T>, Dimension<P>>,
+    P: Partition,
+    T: TreeData,
+    T::Leaf: AsPosition<Position = P::Position>,
+{
+    pub fn insert(&mut self, data: T::Leaf) -> Result<(), ()> {
+        self.tree
+            .root
+            .partition
+            .contains(data.as_position())
+            .ok_or_else(|| ())?;
+        self.tree.root.insert(data);
+        Ok(())
+    }
+
+    pub fn commit(self) -> Tree<P, T>
+    where
+        T: TreeData<Node = ()>,
+    {
+        self.tree
+    }
+
+    pub fn commit_with<F>(self, f: F) -> Tree<P, T>
+    where
+        F: Fn(NodeTopology<(&T::Node, &T::Node), &T::Leaf>) -> T::Node,
+    {
+        let Mutation { mut tree } = self;
+        tree.root.recompute(f);
+        tree
+    }
+}
+
+impl<P, T> From<Tree<P, T>> for Mutation<P, T>
+where
+    Branch<P, T>: LinkTopology<Node<P, T>, Dimension<P>>,
+    P: Partition,
+    T: TreeData,
+    T::Leaf: AsPosition<Position = P::Position>,
+{
+    fn from(tree: Tree<P, T>) -> Self {
+        Mutation { tree }
     }
 }
 
