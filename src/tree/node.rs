@@ -1,9 +1,9 @@
 use std::mem;
-use theon::space::FiniteDimensional;
+use theon::space::{EuclideanSpace, FiniteDimensional};
 use theon::AsPosition;
 use typenum::{NonZero, Unsigned, U2, U3};
 
-use crate::partition::Partition;
+use crate::partition::{NCube, Partition};
 use crate::tree::array::FromFn;
 use crate::tree::TreeData;
 use crate::Spatial;
@@ -28,24 +28,30 @@ where
     nodes: Box<Link<P, T>>,
 }
 
-impl<P, T> LinkTopology<Node<P, T>, U2> for Branch<P, T>
+// TODO: It is not possible to use associated types and `typenum` to convey this
+//       information, because the compiler cannot prove that the implementations
+//       of `FromFn` for arrays are present for some associated constant. This
+//       makes it difficult for partitioning schemes to combine with this
+//       complex trait. It would be very difficult for users to introduce
+//       partitioning!
+impl<T, S> LinkTopology<Node<NCube<S>, T>, U2> for Branch<NCube<S>, T>
 where
-    P: Partition,
-    P::Position: FiniteDimensional<N = U2>,
+    NCube<S>: Partition<Position = S>,
+    S: EuclideanSpace + FiniteDimensional<N = U2>,
     T: TreeData,
-    T::Leaf: AsPosition<Position = P::Position>,
+    T::Leaf: AsPosition<Position = S>,
 {
-    type Link = [Node<P, T>; 4];
+    type Link = [Node<NCube<S>, T>; 4];
 }
 
-impl<P, T> LinkTopology<Node<P, T>, U3> for Branch<P, T>
+impl<T, S> LinkTopology<Node<NCube<S>, T>, U3> for Branch<NCube<S>, T>
 where
-    P: Partition,
-    P::Position: FiniteDimensional<N = U3>,
+    NCube<S>: Partition<Position = S>,
+    S: EuclideanSpace + FiniteDimensional<N = U3>,
     T: TreeData,
-    T::Leaf: AsPosition<Position = P::Position>,
+    T::Leaf: AsPosition<Position = S>,
 {
-    type Link = [Node<P, T>; 8];
+    type Link = [Node<NCube<S>, T>; 8];
 }
 
 pub struct Leaf<T>
